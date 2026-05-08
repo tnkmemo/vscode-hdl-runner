@@ -145,7 +145,7 @@
         "hdlRunner.waveform.viewer": {
           "type": "string",
           "title": "Waveform Viewer",
-          "description": "External waveform viewer command (e.g., gtkwave, verdi, wave)",
+          "description": "External waveform viewer command (e.g., gtkwave)",
           "default": "gtkwave"
         },
         "hdlRunner.waveform.viewerArgs": {
