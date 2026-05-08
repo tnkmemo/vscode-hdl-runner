@@ -1,0 +1,298 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Regression Analysis</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto; background-color: var(--vscode-editor-background, #1e1e1e); color: var(--vscode-editor-foreground, #d4d4d4); padding: 16px; }
+        h1 { font-size: 20px; font-weight: 600; margin-bottom: 16px; }
+        .tabs { display: flex; border-bottom: 1px solid var(--vscode-editorWidget-border, #464647); margin-bottom: 16px; }
+        .tab-button { padding: 8px 16px; border: none; background: transparent; color: var(--vscode-descriptionForeground, #858585); cursor: pointer; font-size: 13px; border-bottom: 2px solid transparent; }
+        .tab-button.active { color: var(--vscode-button-background, #0e639c); border-bottom-color: var(--vscode-button-background, #0e639c); }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .selector { display: flex; gap: 12px; margin-bottom: 16px; align-items: center; }
+        .selector select { flex: 1; padding: 6px 8px; border: 1px solid var(--vscode-editorWidget-border, #464647); background-color: var(--vscode-input-background, #3c3c3c); color: var(--vscode-input-foreground, #d4d4d4); border-radius: 3px; font-size: 13px; }
+        .btn { padding: 6px 12px; border-radius: 3px; border: none; background-color: var(--vscode-button-background, #0e639c); color: #fff; cursor: pointer; font-size: 12px; white-space: nowrap; }
+        .btn:hover { background-color: var(--vscode-button-hoverBackground, #1177bb); }
+        .btn.secondary { background-color: transparent; border: 1px solid var(--vscode-editorWidget-border, #464647); color: var(--vscode-editor-foreground, #d4d4d4); }
+        .btn.secondary.active { background-color: var(--vscode-button-background, #0e639c); color: #fff; border-color: var(--vscode-button-background, #0e639c); }
+        .stats { display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
+        .stat { padding: 8px 12px; border-radius: 4px; background-color: var(--vscode-editor-lineHighlightBackground, #2d2d30); font-size: 13px; }
+        .stat-label { font-size: 11px; color: var(--vscode-descriptionForeground, #858585); }
+        .stat-val { font-size: 16px; font-weight: 600; margin-top: 4px; color: var(--vscode-button-background, #0e639c); }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 12px; }
+th { padding: 8px; background-color: var(--vscode-editor-lineHighlightBackground, #2d2d30); border-bottom: 1px solid var(--vscode-editorWidget-border, #464647); text-align: left; font-size: 11px; color: white; }
+        td { padding: 8px; border-bottom: 1px solid var(--vscode-editorWidget-border, #464647); }
+        tbody tr:hover { background-color: var(--vscode-list-hoverBackground, #2d2d30); }
+        .chart-container { position: relative; width: 100%; height: 400px; margin-top: 16px; }
+        .metric-buttons { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+        .legend { display: flex; gap: 16px; margin-top: 12px; flex-wrap: wrap; font-size: 12px; }
+        .legend-item { display: flex; align-items: center; gap: 6px; }
+        .legend-color { width: 12px; height: 12px; border-radius: 2px; }
+        #progress-content { margin-top: 16px; }
+        #progress-content table tr.pending { color: var(--vscode-descriptionForeground, #858585); }
+        #progress-content table tr.skipped { color: var(--vscode-descriptionForeground, #858585); }
+        #progress-content table tr.running { color: var(--vscode-charts-blue, #3794ff); }
+        #progress-content table tr.success { color: var(--vscode-charts-green, #4ec9b0); }
+        #progress-content table tr.failed { color: var(--vscode-charts-red, #f48771); }
+        #content table tbody tr.queued { color: var(--vscode-descriptionForeground, #858585); }
+        #content table tbody tr.skipped { color: var(--vscode-descriptionForeground, #858585); }
+        #content table tbody tr.success { color: var(--vscode-charts-green, #4ec9b0); }
+        #content table tbody tr.failed { color: var(--vscode-charts-red, #f48771); }
+    </style>
+</head>
+<body>
+    <div>
+        <h1>Regression Analysis</h1>
+        <div class="tabs">
+            <button class="tab-button active" data-tab="results">Results</button>
+            <button class="tab-button" data-tab="progress">Progress</button>
+        </div>
+
+        <div id="results" class="tab-content active">
+            <div class="selector">
+                <label>Select:</label>
+                <select id="dropdown"></select>
+                <button class="btn" id="reload">Reload</button>
+            </div>
+            <div id="stats"></div>
+            <div id="content"></div>
+        </div>
+
+        <div id="progress" class="tab-content">
+            <div class="metric-buttons" id="metric-buttons"></div>
+            <div class="chart-container"><canvas id="trendChart"></canvas></div>
+            <div class="legend" id="legend"></div>
+            <div id="progress-content"></div>
+        </div>
+    </div>
+
+    <script>
+        const vscode = acquireVsCodeApi();
+        
+        class RegressionUI {
+            constructor() {
+                this.allResultsData = [];
+                this.chart = null;
+                this.metricMode = 'all';
+                this.isUpdatingDropdown = false; // Flag to prevent automatic change events
+                this.setupTabs();
+                this.setupResultsTab();
+                this.setupProgressTab();
+                this.setupMessageListener();
+                vscode.postMessage({type: 'getAllResults'});
+            }
+
+            setupTabs() {
+                document.querySelectorAll('.tab-button').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+                        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                        e.target.classList.add('active');
+                        document.getElementById(e.target.dataset.tab).classList.add('active');
+                        if(e.target.dataset.tab === 'progress') this.renderProgress();
+                    });
+                });
+            }
+
+            setupResultsTab() {
+                document.getElementById('dropdown').addEventListener('change', (e) => {
+                    // Only respond to manual user changes, not programmatic updates
+                    if(!this.isUpdatingDropdown && e.target.value) {
+                        vscode.postMessage({type: 'loadSpecificResult', payload: {filepath: e.target.value}});
+                    }
+                });
+                document.getElementById('reload').addEventListener('click', () => {
+                    vscode.postMessage({type: 'reloadResults'});
+                });
+            }
+
+            setupProgressTab() {
+                const metricsContainer = document.getElementById('metric-buttons');
+                const metrics = [
+                    {label: 'All Metrics', value: 'all'},
+                    {label: 'Pass Only', value: 'pass'},
+                    {label: 'Fail Only', value: 'fail'},
+                    {label: 'Warnings', value: 'warn'}
+                ];
+                metrics.forEach(m => {
+                    const btn = document.createElement('button');
+                    btn.className = 'btn secondary' + (m.value === 'all' ? ' active' : '');
+                    btn.textContent = m.label;
+                    btn.addEventListener('click', () => {
+                        document.querySelectorAll('#metric-buttons .btn').forEach(b => b.classList.remove('active'));
+                        btn.classList.add('active');
+                        this.metricMode = m.value;
+                        this.renderProgress();
+                    });
+                    metricsContainer.appendChild(btn);
+                });
+            }
+
+            setupMessageListener() {
+                window.addEventListener('message', (e) => {
+                    if(e.data.type === 'allResults') {
+                        this.allResultsData = e.data.payload;
+                        this.populateDropdown(e.data.payload);
+                    } else if(e.data.type === 'regressionData') {
+                        this.renderResults(e.data.payload);
+                    } else if(e.data.type === 'progressData') {
+                        this.renderTestProgress(e.data.payload);
+                    }
+                });
+            }
+
+            populateDropdown(results) {
+                const dd = document.getElementById('dropdown');
+                this.isUpdatingDropdown = true;
+                
+                dd.innerHTML = '';
+                results.forEach(r => {
+                    const opt = document.createElement('option');
+                    opt.value = r.filepath;
+                    opt.text = new Date(r.timestamp).toLocaleString() + ` (${r.passedTests}/${r.totalTests})`;
+                    dd.appendChild(opt);
+                });
+                if(results.length > 0) {
+                    dd.selectedIndex = 0;
+                }
+                
+                this.isUpdatingDropdown = false;
+            }
+
+            renderResults(data) {
+                const errors = data.tests.reduce((s, t) => s + t.errors, 0);
+                const warnings = data.tests.reduce((s, t) => s + t.warnings, 0);
+                document.getElementById('stats').innerHTML = `
+                    <div class="stats">
+                        <div class="stat"><div class="stat-label">Tests</div><div class="stat-val">${data.tests.length}</div></div>
+                        <div class="stat"><div class="stat-label">Errors</div><div class="stat-val">${errors}</div></div>
+                        <div class="stat"><div class="stat-label">Warnings</div><div class="stat-val">${warnings}</div></div>
+                    </div>
+                `;
+                const rows = data.tests.map(t => {
+                    const statusDisplay = {
+                        'queued': 'Queued',
+                        'skipped': 'Skipped',
+                        'success': 'Success',
+                        'failed': 'Failed'
+                    }[t.status] || t.status;
+                    // return `<tr class="${t.status}"><td>${t.name}</td><td>${statusDisplay}</td><td>${t.errors}</td><td>${t.warnings}</td><td><button class="btn secondary" onclick="vscode.postMessage({type: 'viewLog', payload: {testName: '${t.name}'}})">View Log</button></td></tr>`;
+                    const waveButton = t.vcd 
+                        ? `<button class="btn secondary" onclick="vscode.postMessage({type: 'openWaveform', payload: {vcd: '${t.vcd.replace(/\\/g, '/')}'}})">View Wave</button>`
+                        : `<button class="btn secondary" disabled title="No VCD file available">No Wave</button>`;
+
+                    return `<tr class="${t.status}">
+                        <td>${t.name}</td>
+                        <td>${statusDisplay}</td>
+                        <td>${t.errors}</td>
+                        <td>${t.warnings}</td>
+                        <td>
+                            <div style="display: flex; gap: 4px;">
+                                <button class="btn secondary" onclick="vscode.postMessage({type: 'viewLog', payload: {testName: '${t.name}'}})">View Log</button>
+                                ${waveButton}
+                            </div>
+                        </td>
+                    </tr>`;
+                }).join('');
+                document.getElementById('content').innerHTML = `<table><thead><tr><th>Test</th><th>Status</th><th>Errors</th><th>Warnings</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table>`;
+            }
+
+            getStatusDisplayText(status) {
+                const statusMap = {
+                    'pending': 'Queued',
+                    'skipped': 'Skipped',
+                    'running': 'Running',
+                    'success': 'Success',
+                    'failed': 'Failed'
+                };
+                return statusMap[status] || status;
+            }
+
+            renderTestProgress(progressData) {
+                const progressContent = document.getElementById('progress-content');
+                if (!progressData || progressData.length === 0) {
+                    progressContent.innerHTML = '<div style="padding:20px;color:var(--vscode-descriptionForeground,#858585)">No tests in progress</div>';
+                    return;
+                }
+
+                const rows = progressData.map(p => {
+                    const statusClass = p.status === 'success' ? 'success' : p.status === 'failed' ? 'failed' : p.status === 'running' ? 'running' : p.status === 'skipped' ? 'skipped' : 'pending';
+                    const statusText = this.getStatusDisplayText(p.status);
+                    const duration = p.duration ? `${(p.duration / 1000).toFixed(1)}s` : p.status === 'running' ? 'Running...' : '';
+                    return `<tr class="${statusClass}"><td>${p.testName}</td><td>${statusText}</td><td>${duration}</td><td><button class="btn secondary" onclick="vscode.postMessage({type: 'viewLog', payload: {testName: '${p.testName}'}})">View Log</button></td></tr>`;
+                }).join('');
+                
+                progressContent.innerHTML = `
+                    <table>
+                        <thead><tr><th>Test</th><th>Status</th><th>Duration</th><th>Actions</th></tr></thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                `;
+            }
+
+            renderProgress() {
+                if(this.allResultsData.length < 2) {
+                    document.getElementById('legend').innerHTML = '<div style="padding:20px;color:var(--vscode-descriptionForeground,#858585)">At least 2 results needed for trend analysis</div>';
+                    return;
+                }
+
+                const sorted = [...this.allResultsData].reverse();
+                const labels = sorted.map((r, i) => {
+                    const date = new Date(r.timestamp);
+                    return (date.getMonth()+1) + '/' + date.getDate() + ' ' + date.getHours() + ':' + String(date.getMinutes()).padStart(2, '0');
+                });
+                const passed = sorted.map(r => r.passedTests);
+                const failed = sorted.map(r => r.failedTests);
+                const rate = sorted.map(r => ((r.passedTests / r.totalTests) * 100).toFixed(1));
+
+                let datasets = [];
+                if(this.metricMode === 'all') {
+                    datasets = [
+                        {label: 'Passed', data: passed, borderColor: '#4ec9b0', backgroundColor: 'rgba(78, 201, 176, 0.1)', tension: 0.3},
+                        {label: 'Failed', data: failed, borderColor: '#f48771', backgroundColor: 'rgba(244, 135, 113, 0.1)', tension: 0.3},
+                        {label: 'Success Rate %', data: rate, borderColor: '#4fc1ff', backgroundColor: 'rgba(79, 193, 255, 0.1)', tension: 0.3, yAxisID: 'y1'}
+                    ];
+                } else if(this.metricMode === 'pass') {
+                    datasets = [{label: 'Passed Tests', data: passed, borderColor: '#4ec9b0', backgroundColor: 'rgba(78, 201, 176, 0.2)', tension: 0.3}];
+                } else if(this.metricMode === 'fail') {
+                    datasets = [{label: 'Failed Tests', data: failed, borderColor: '#f48771', backgroundColor: 'rgba(244, 135, 113, 0.2)', tension: 0.3}];
+                } else if(this.metricMode === 'warn') {
+                    datasets = [{label: 'Success Rate %', data: rate, borderColor: '#4fc1ff', backgroundColor: 'rgba(79, 193, 255, 0.2)', tension: 0.3}];
+                }
+
+                const ctx = document.getElementById('trendChart').getContext('2d');
+                if(this.chart) this.chart.destroy();
+                
+                this.chart = new Chart(ctx, {
+                    type: 'line',
+                    data: {labels, datasets},
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {legend: {labels: {color: 'rgba(212,212,212,0.7)', font: {size: 12}}}},
+                        scales: {
+                            y: {ticks: {color: 'rgba(212,212,212,0.5)'}, grid: {color: 'rgba(100,100,100,0.1)'}},
+                            y1: this.metricMode === 'all' ? {position: 'right', ticks: {color: 'rgba(212,212,212,0.5)'}, grid: {color: 'rgba(100,100,100,0.1)'}} : undefined,
+                            x: {ticks: {color: 'rgba(212,212,212,0.5)'}, grid: {color: 'rgba(100,100,100,0.1)'}}
+                        }
+                    }
+                });
+
+                const legend = document.getElementById('legend');
+                legend.innerHTML = datasets.map(d => `
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color:${d.borderColor}"></div>
+                        <span>${d.label}</span>
+                    </div>
+                `).join('');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => new RegressionUI());
+    </script>
+</body>
+</html>

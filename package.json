@@ -1,0 +1,181 @@
+{
+  "name": "vscode-hdl-runner",
+  "displayName": "HDL Runner",
+  "description": "Vendor-free HDL workflow runner for SystemVerilog/Verilog/VHDL. Supports compile, elaborate, simulate, regression and custom stages.",
+  "version": "0.0.1",
+  "publisher": "tnkmemo",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other",
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onView:hdlRunnerStages",
+    "onCommand:hdlRunner.runStages"
+  ],
+  "main": "./out/src/extension.js",
+  "contributes": {
+    "views": {
+      "explorer": [
+        {
+          "id": "hdlRunnerView",
+          "name": "HDL Runner"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "hdlRunner.openRegressionPanel",
+        "title": "Open Regression Analysis Panel",
+        "category": "HDL Runner"
+      },
+      {
+        "command": "hdlRunner.runAllTests",
+        "title": "Run All Tests (Parallel)",
+        "category": "HDL Runner"
+      },
+      {
+        "command": "hdlRunner.runSelectedTests",
+        "title": "Run Selected Tests (Parallel)",
+        "category": "HDL Runner"
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "HDL Runner Settings",
+      "properties": {
+        "hdlRunner.items": {
+          "type": "object",
+          "description": "HDL Runner hierarchical items (stages, groups)",
+          "default": {},
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "stage",
+                  "group"
+                ],
+                "description": "Item type"
+              },
+              "command": {
+                "type": "string",
+                "description": "Command to execute (stage only)"
+              },
+              "dependsOn": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Dependencies (stage only)"
+              },
+              "items": {
+                "type": "object",
+                "description": "Nested items (group only)"
+              }
+            }
+          }
+        },
+        "hdlRunner.tests": {
+          "type": "object",
+          "description": "HDL Runner test configurations for simulate stage",
+          "default": {},
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "plusargs": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Plusargs appended to simulate command"
+              },
+              "seed": {
+                "type": "number",
+                "description": "Random seed for simulation reproducibility"
+              }
+            }
+          }
+        },
+        "hdlRunner.includeExts": {
+          "type": "array",
+          "title": "Include file extensions",
+          "description": "Extensions to watch inside +incdir+ directories",
+          "default": [
+            "*.svh"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "hdlRunner.logPatterns": {
+          "type": "object",
+          "title": "Log Pattern Matching",
+          "description": "Regular expression patterns for error and warning detection in simulation logs",
+          "default": {
+            "error": ["ERROR", "%Error"],
+            "warning": ["WARNING", "%Warning"]
+          },
+          "properties": {
+            "error": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Error patterns (case-insensitive OR matching)"
+            },
+            "warning": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Warning patterns (case-insensitive OR matching)"
+            }
+          }
+        },
+        "hdlRunner.waveform.viewer": {
+          "type": "string",
+          "title": "Waveform Viewer",
+          "description": "External waveform viewer command (e.g., gtkwave, verdi, wave)",
+          "default": "gtkwave"
+        },
+        "hdlRunner.waveform.viewerArgs": {
+          "type": "array",
+          "title": "Waveform Viewer Arguments",
+          "description": "Arguments for waveform viewer (use ${vcd} placeholder for VCD file path)",
+          "default": ["${vcd}"],
+          "items": { "type": "string" }
+        },
+        "hdlRunner.regression.resultsDir": {
+          "type": "string",
+          "title": "Regression Results Directory",
+          "description": "Directory to save regression results JSON (relative to workspace root)",
+          "default": "out/results"
+        },
+        "hdlRunner.maxParallel": {
+          "type": "number",
+          "title": "Maximum Parallel Simulations",
+          "description": "Maximum number of parallel simulations (1 for sequential, 2+ for parallel)",
+          "default": 1,
+          "minimum": 1
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "test": "node ./out/test/runTest.js",
+    "generate-notices": "node ./scripts/generate-third-party.js"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.1",
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/test-electron": "^2.3.8",
+    "glob": "^10.3.10",
+    "license-checker": "^25.0.1",
+    "mocha": "^10.2.0",
+    "typescript": "^5.3.0",
+    "vsce": "^2.15.0"
+  }
+}

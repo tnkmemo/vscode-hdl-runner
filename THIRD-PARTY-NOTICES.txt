@@ -1,0 +1,6 @@
+------------------------------------------------------------
+Package: vscode-hdl-runner@0.0.1
+License: MIT*
+
+(License text not provided by package)
+
