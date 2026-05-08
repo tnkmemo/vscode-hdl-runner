@@ -2,7 +2,7 @@
   "name": "vscode-hdl-runner",
   "displayName": "HDL Runner",
   "description": "Vendor-free HDL workflow runner for SystemVerilog/Verilog/VHDL. Supports compile, elaborate, simulate, regression and custom stages.",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "publisher": "tnkmemo",
   "engines": {
     "vscode": "^1.85.0"
@@ -116,18 +116,28 @@
           "title": "Log Pattern Matching",
           "description": "Regular expression patterns for error and warning detection in simulation logs",
           "default": {
-            "error": ["ERROR", "%Error"],
-            "warning": ["WARNING", "%Warning"]
+            "error": [
+              "ERROR",
+              "%Error"
+            ],
+            "warning": [
+              "WARNING",
+              "%Warning"
+            ]
           },
           "properties": {
             "error": {
               "type": "array",
-              "items": { "type": "string" },
+              "items": {
+                "type": "string"
+              },
               "description": "Error patterns (case-insensitive OR matching)"
             },
             "warning": {
               "type": "array",
-              "items": { "type": "string" },
+              "items": {
+                "type": "string"
+              },
               "description": "Warning patterns (case-insensitive OR matching)"
             }
           }
@@ -142,8 +152,12 @@
           "type": "array",
           "title": "Waveform Viewer Arguments",
           "description": "Arguments for waveform viewer (use ${vcd} placeholder for VCD file path)",
-          "default": ["${vcd}"],
-          "items": { "type": "string" }
+          "default": [
+            "${vcd}"
+          ],
+          "items": {
+            "type": "string"
+          }
         },
         "hdlRunner.regression.resultsDir": {
           "type": "string",
