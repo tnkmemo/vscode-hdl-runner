@@ -20,7 +20,6 @@ export interface WaveformConfig {
 export interface RegressionConfig {
   logPatterns: LogPatterns;
   waveform: WaveformConfig;
-  resultsDir: string;
 }
 
 export interface HDLRunnerSettings {
@@ -52,8 +51,7 @@ export function loadSettings(): HDLRunnerSettings {
       waveform: config.get<WaveformConfig>("waveform.config") ?? {
         viewer: "gtkwave",
         viewerArgs: ["${vcd}"]
-      },
-      resultsDir: config.get<string>("regression.resultsDir") ?? "out/results",
+      }
     },
     maxParallel: config.get<number>("maxParallel") ?? 1,
     filelistPath: config.get<string>("filelistPath") ?? "filelist.f"

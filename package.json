@@ -159,12 +159,6 @@
             "type": "string"
           }
         },
-        "hdlRunner.regression.resultsDir": {
-          "type": "string",
-          "title": "Regression Results Directory",
-          "description": "Directory to save regression results JSON (relative to workspace root)",
-          "default": "out/results"
-        },
         "hdlRunner.maxParallel": {
           "type": "number",
           "title": "Maximum Parallel Simulations",
