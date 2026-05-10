@@ -22,10 +22,16 @@ export class watcherManager {
     // File change
     const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     if (wsRoot) {
-      const filelistPath = path.join(wsRoot, "filelist.f");
-      if (fs.existsSync(filelistPath)) {
-        this.watchFileDeps(filelistPath);
-        log.info("filelist.f loaded.");
+      const relativePath = this.settings.filelistPath;
+      const fullPath = path.isAbsolute(relativePath) 
+        ? relativePath 
+        : path.join(wsRoot, relativePath);
+
+      if (fs.existsSync(fullPath)) {
+        this.watchFileDeps(fullPath);
+        log.info(`${relativePath} loaded.`);
+      } else {
+        log.warn(`Configured filelist not found: ${fullPath}`);
       }
     }
   }
@@ -53,12 +59,14 @@ export class watcherManager {
       this.filelistWatchers = [];
 
       // Create and watch
-      let watcher = vscode.workspace.createFileSystemWatcher("**/filelist.f");
+      const target = this.settings.filelistPath;
+      let watcher = vscode.workspace.createFileSystemWatcher(`**/${target}`);
+
       watcher.onDidChange((uri) => {
-        this.resetAllStages("filelist.f is changed.");
+        this.resetAllStages(`${target} is changed.`);
         this.watchFileDeps(uri.fsPath);
       });
-      watcher.onDidCreate(() => this.resetAllStages("filelist.f created"));
+      watcher.onDidCreate(() => this.resetAllStages(`${target} created`));
 
       // Register
       this.filelistWatchers.push(watcher);

@@ -171,6 +171,12 @@
           "description": "Maximum number of parallel simulations (1 for sequential, 2+ for parallel)",
           "default": 1,
           "minimum": 1
+        },
+        "hdlRunner.filelistPath": {
+          "type": "string",
+          "title": "Filelist Path",
+          "description": "Path to the main filelist file (e.g., filelist.f) relative to the workspace root.",
+          "default": "filelist.f"
         }
       }
     }
