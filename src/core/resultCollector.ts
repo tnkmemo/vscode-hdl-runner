@@ -321,32 +321,4 @@ export class ResultCollector {
       return null;
     }
   }
-
-  /**
-   * Delete old results to maintain MAX_RESULTS limit
-   * @param resultsDir Results directory path
-   */
-  private cleanupOldResults(resultsDir: string): void {
-    try {
-      const files = fs.readdirSync(resultsDir).filter((f) =>
-        f.startsWith("regression_") && f.endsWith(".json")
-      );
-
-      if (files.length <= this.MAX_RESULTS) {
-        return;
-      }
-
-      // Sort by filename (descending) and delete old files
-      files.sort().reverse();
-      const filesToDelete = files.slice(this.MAX_RESULTS);
-
-      for (const file of filesToDelete) {
-        const filepath = path.join(resultsDir, file);
-        fs.unlinkSync(filepath);
-        console.log(`Deleted old result file: ${filepath}`);
-      }
-    } catch (error) {
-      console.warn("Failed to cleanup old results:", error);
-    }
-  }
 }
