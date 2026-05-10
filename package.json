@@ -12,8 +12,7 @@
     "Programming Languages"
   ],
   "activationEvents": [
-    "onView:hdlRunnerStages",
-    "onCommand:hdlRunner.runStages"
+    "onCommand:hdlRunner.enable"
   ],
   "main": "./out/src/extension.js",
   "contributes": {
@@ -27,19 +26,22 @@
     },
     "commands": [
       {
+        "command": "hdlRunner.enable",
+        "title": "HDL Runner: Enable Extension",
+        "category": "HDL Runner",
+        "when": "!hdlRunnerEnabled"
+      },
+      {
+        "command": "hdlRunner.disable",
+        "title": "HDL Runner: Disable Extension",
+        "category": "HDL Runner",
+        "when": "hdlRunnerEnabled"
+      },
+      {
         "command": "hdlRunner.openRegressionPanel",
-        "title": "Open Regression Analysis Panel",
-        "category": "HDL Runner"
-      },
-      {
-        "command": "hdlRunner.runAllTests",
-        "title": "Run All Tests (Parallel)",
-        "category": "HDL Runner"
-      },
-      {
-        "command": "hdlRunner.runSelectedTests",
-        "title": "Run Selected Tests (Parallel)",
-        "category": "HDL Runner"
+        "title": "Open Regression Panel",
+        "category": "HDL Runner",
+        "when": "hdlRunnerEnabled"
       }
     ],
     "configuration": {
@@ -159,18 +161,18 @@
             "type": "string"
           }
         },
-        "hdlRunner.regression.resultsDir": {
-          "type": "string",
-          "title": "Regression Results Directory",
-          "description": "Directory to save regression results JSON (relative to workspace root)",
-          "default": "out/results"
-        },
         "hdlRunner.maxParallel": {
           "type": "number",
           "title": "Maximum Parallel Simulations",
           "description": "Maximum number of parallel simulations (1 for sequential, 2+ for parallel)",
           "default": 1,
           "minimum": 1
+        },
+        "hdlRunner.filelistPath": {
+          "type": "string",
+          "title": "Filelist Path",
+          "description": "Path to the main filelist file (e.g., filelist.f) relative to the workspace root.",
+          "default": "filelist.f"
         }
       }
     }

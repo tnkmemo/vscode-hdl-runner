@@ -20,7 +20,6 @@ export interface WaveformConfig {
 export interface RegressionConfig {
   logPatterns: LogPatterns;
   waveform: WaveformConfig;
-  resultsDir: string;
 }
 
 export interface HDLRunnerSettings {
@@ -30,41 +29,32 @@ export interface HDLRunnerSettings {
   includeExts: string[];
   regression: RegressionConfig;
   maxParallel: number;
+  filelistPath: string;
 }
 
 export function loadSettings(): HDLRunnerSettings {
   const config = vscode.workspace.getConfiguration("hdlRunner");
 
   const items = config.get<Record<string, ItemConfig>>("items") ?? {};
-  const tests = config.get<Record<string, { plusargs: string[] }>>("tests") ?? {};
-  const includeExts = config.get<string[]>("includeExts") ?? ["*.svh"];
-  
-  // Regression settings
-  const logPatterns = config.get<LogPatterns>("logPatterns") ?? {
-    error: ["ERROR", "%Error"],
-    warning: ["WARNING", "%Warning"]
-  };
-  
-  const waveform = config.get<WaveformConfig>("waveform.config") ?? {
-    viewer: "gtkwave",
-    viewerArgs: ["${vcd}"]
-  };
-
-  const resultsDir = config.get<string>("regression.resultsDir") ?? "out/results";
-
   const flatItems = flattenItems(items);
 
   return {
     items,
     flatItems,
-    tests,
-    includeExts,
+    tests: config.get<Record<string, { plusargs: string[] }>>("tests") ?? {},
+    includeExts: config.get<string[]>("includeExts") ?? ["*.svh"],
     regression: {
-      logPatterns,
-      waveform,
-      resultsDir
+      logPatterns:config.get<LogPatterns>("logPatterns") ?? {
+        error: ["ERROR", "%Error"],
+        warning: ["WARNING", "%Warning"]
+      },
+      waveform: config.get<WaveformConfig>("waveform.config") ?? {
+        viewer: "gtkwave",
+        viewerArgs: ["${vcd}"]
+      }
     },
-    maxParallel: config.get<number>("maxParallel") ?? 1
+    maxParallel: config.get<number>("maxParallel") ?? 1,
+    filelistPath: config.get<string>("filelistPath") ?? "filelist.f"
   };
 }
 
