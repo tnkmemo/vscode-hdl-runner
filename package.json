@@ -2,7 +2,7 @@
   "name": "vscode-hdl-runner",
   "displayName": "HDL Runner",
   "description": "Vendor-free HDL workflow runner for SystemVerilog/Verilog/VHDL. Supports compile, elaborate, simulate, regression and custom stages.",
-  "version": "0.0.3",
+  "version": "0.1.0",
   "publisher": "tnkmemo",
   "engines": {
     "vscode": "^1.85.0"
