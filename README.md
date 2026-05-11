@@ -1,18 +1,80 @@
 # vscode-hdl-runner
 
-`VSCode HDL Runner` is a VS Code extension designed to streamline hardware design and verification using SystemVerilog and Verilog. It provides parallel simulation execution, automatic log-based error analysis, regression test results visualization, and seamless integration with waveform viewers.
+`VSCode HDL Runner` is a VS Code extension designed to streamline hardware design and verification using SystemVerilog, Verilog and VHDL. It provides parallel simulation execution, automatic log error analysis, regression result visualization, and seamless integration with waveform viewers.
 
 ## Key Features
 
-- **Parallel Test Execution**: Run multiple tests in parallel to significantly reduce verification time.
-- **Regression Test Dashboard**: Monitor real-time test progress and pass/fail status via a dedicated Webview panel.
-- **Log Analysis**: Automatically identifies errors and warnings by scanning simulation logs.
-- **File Watching**: Detects changes in `filelist.f` or source code and automatically resets the execution status of relevant stages.
-- **Tree View Management**: Displays project structures in a tree format, allowing you to easily execute specific stages or tests.
+- **Tree View Management**: Displays execution commands in a tree format, making it easy to run specific tools or tests.
+- **Regression Panel**: A Webview panel allows you to monitor test progress and pass/fail status in real-time.
+- **Log Analysis**: Scans simulation logs to automatically identify errors and warnings.
+- **Parallel Test Execution**: Runs multiple tests in parallel to significantly reduce verification time.
+- **File Monitoring**: Detects changes in `filelist.f` or source code and automatically resets test statuses.
 
-## Configuration
+## Get Started
 
-Customize the extension by adding the following settings to your `.vscode/settings.json`.
+### 1. Minimal Configuration
+Create a `.vscode/settings.json` file and define the minimum configuration required to run a simulation.
+
+```json
+{
+  "hdlRunner.items": {
+    "sim": {
+      "type": "group",
+      "items": {
+        "compile": {
+          "type": "stage",
+          "command": "iverilog -g2012 -o sim.out -f filelist.f"
+        },
+        "runTest": {
+          "type": "stage",
+          "dependsOn": ["sim.compile"], 
+          "command": "vvp sim.out"
+        }
+      }
+    }
+  },
+  "hdlRunner.tests": {
+    "sample_test": { "plusargs": [] }
+  }
+}
+```
+
+### 2. Create a File List
+Create a list of synthesizable/simulatable files and save it as `filelist.f`.
+
+### 3. Enable HDL Runner
+Open the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`) and execute the following command to activate the extension:
+
+> **HDL Runner: Enable Extension**
+
+Once activated, the items will appear in the `HDL Runner` section of the Tree View.
+
+### 4. Run Tests
+From the items displayed in the Tree View, click (or batch execute) the following in order to start the simulation:
+
+1. **compile**: Compiles the source code.
+2. **runTest**: Executes the actual simulation.
+
+After completion, logs will be output to the `out/run_YYMMDD/logs/<testname>/` folder, and you can review the results via the panel.
+
+### 5. Check Results
+Execute the `HDL Runner: Open Regression Panel` command to open the panel.
+
+You can view the specific logs by clicking **Open Log** within the panel.
+
+## Paths and Placeholders
+
+When used within the `command` property, the following placeholders are automatically replaced with a unique runtime directory path (e.g., `out/run_YYMMDD...`) generated for each execution. This prevents log and waveform data conflicts during parallel execution.
+
+- `${logs}`: Output destination for simulation logs.
+- `${works}`: Working directory for compilation and simulation.
+- `${waves}`: Output destination for waveform data (VCD, etc.).
+- `${covs}`: Output destination for coverage data.
+- `${results}`: Storage location for regression results (JSON).
+
+## Configuration Example
+
+Customize your environment by adding the following settings to `.vscode/settings.json`:
 
 ```jsonc
 {
@@ -33,7 +95,7 @@ Customize the extension by adding the following settings to your `.vscode/settin
         "test": {
           "type": "group",
           "items": {
-            // "runTest", "runSelectedTest", and "runAllTest" are reserved words
+            // runTest / runSelectedTest / runAllTest are reserved keywords
             "runTest": { 
               "type": "stage",
               "dependsOn": ["sim.elaborate"],
@@ -54,7 +116,7 @@ Customize the extension by adding the following settings to your `.vscode/settin
       }
     },
 
-    // Lint, CDC, or other tool configurations
+    // Tools such as Lint or CDC
     "Tools": {
       "type": "group",
       "items": {
@@ -66,7 +128,7 @@ Customize the extension by adding the following settings to your `.vscode/settin
     }
   },
 
-  // Test case registration
+  // Registering test cases
   "hdlRunner.tests": {
     "test1": { "plusargs": ["test1"] },
     "test2": { "plusargs": ["test2"] },
@@ -75,32 +137,16 @@ Customize the extension by adding the following settings to your `.vscode/settin
     "test5": { "plusargs": ["test5"] }
   },
 
-  // File extensions to watch within +incdir+ specified in filelist.f
+  // Extensions to monitor within +incdir+ in filelist.f
   "hdlRunner.includeExts": ["*.svh"],
 
-  // Regex patterns for detecting errors and warnings in simulation logs
+  // Regex patterns for log analysis
   "hdlRunner.logPatterns": {
     "error": ["ERROR", "%Error"],
     "warning": ["WARNING", "%Warning"]
   },
 
-  // Maximum number of parallel executions
+  // Limit for maximum parallel executions
   "hdlRunner.maxParallel": 1
 }
 ```
-
-## Path Placeholders
-
-Using the following placeholders within the `command` property will automatically replace them with a unique runtime directory path (e.g., `out/run_YYMMDD...`) generated for each execution. This prevents conflicts between log and waveform data during parallel runs.
-
-- `${logs}`: Output directory for simulation logs.
-- `${works}`: Working directory for compilation and simulation.
-- `${waves}`: Output directory for waveform data (VCD, WLF, etc.).
-- `${covs}`: Output directory for coverage data.
-- `${results}`: Storage location for regression test results (JSON).
-
-## Usage
-
-1. **Run Tests**: Click an item in the `HDL Runner` icon located in the Activity Bar to execute it.
-2. **Review Results**: Run the `Open Regression Panel` command to open the regression dashboard.
-3. **Check Logs and Waveforms**: Click `Open Log` in the dashboard to view log files, or use the waveform viewer integration.
