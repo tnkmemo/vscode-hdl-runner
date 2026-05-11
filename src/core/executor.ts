@@ -1,7 +1,6 @@
 import { HDLRunnerSettings, ItemConfig } from "../config/settings";
 import { ExecutionStage } from "../core/stage";
 import { resultsStore } from "../core/results";
-import { statusBar } from "../ui/statusBar";
 import { log } from "../ui/output";
 import * as vscode from "vscode";
 
@@ -40,18 +39,12 @@ export class Executor {
     }
 
     // Update UI
-    statusBar.showRunning(fullName);
     resultsStore.setRunning(fullName);
 
     const stage = new ExecutionStage(fullName, item);
     const { code, duration } = await stage.run();
 
     // Update UI
-    if (code === 0) {
-      statusBar.showSuccess(fullName);
-    } else {
-      statusBar.showFailed(fullName);
-    }
     resultsStore.setResult(fullName, code, duration);
 
     // Update treeView
@@ -192,17 +185,14 @@ export class Executor {
     const stage = new ExecutionStage(fullName, effectiveConfig, testName, runDir);
 
     // Update UI
-    statusBar.showRunning(`${fullName} (${testName})`);
     resultsStore.setRunning(`${fullName}.${testName}`);
 
     const { code, duration } = await stage.run();
 
     // Update UI
     if (code === 0) {
-      statusBar.showSuccess(`${fullName} (${testName})`);
       this.progressCallbacks.forEach(callback => callback(testName, "success", duration));
     } else {
-      statusBar.showFailed(`${fullName} (${testName})`);
       this.progressCallbacks.forEach(callback => callback(testName, "failed", duration));
     }
     resultsStore.setResult(`${fullName}.${testName}`, code, duration);

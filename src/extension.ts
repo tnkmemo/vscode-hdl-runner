@@ -5,6 +5,7 @@ import { resultsStore } from "./core/results";
 import { watcherManager } from "./core/watcher";
 import { HDLRunnerTreeView } from "./ui/treeView";
 import { log } from "./ui/output";
+import { statusBar } from "./ui/statusBar";
 import { RegressionPanel } from "./core/regressionPanel";
 import { ResultCollector } from "./core/resultCollector";
 import { WaveformLauncher } from "./core/waveformLauncher";
@@ -241,10 +242,12 @@ export function activate(context: vscode.ExtensionContext) {
 
   context.subscriptions.push(
     vscode.commands.registerCommand("hdlRunner.enable", () => {
-        controller.activate();
+      controller.activate();
+      statusBar.showEnable();
     }),
     vscode.commands.registerCommand("hdlRunner.disable", () => {
-        controller.deactivate();
+      controller.deactivate();
+      statusBar.showDisable();
     })
   );
 }

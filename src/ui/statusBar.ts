@@ -5,28 +5,18 @@ class StatusBar {
 
   constructor() {
     this.item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
-    this.item.text = "$(circuit-board) hdlRunner: Idle";
+    this.item.text = "hdlRunner: Disable";
     this.item.show();
   }
 
-  showIdle() {
-    this.item.text = "$(circuit-board) hdlRunner: Idle";
-    this.item.tooltip = "SystemVerilog Simulation Framework";
+  showEnable() {
+    this.item.text = "hdlRunner: Enable";
+    this.item.tooltip = "HDL Runner Enable";
   }
 
-  showRunning(name: string) {
-    this.item.text = `$(sync~spin) hdlRunner: Running ${name}…`;
-    this.item.tooltip = `Running stage: ${name}`;
-  }
-
-  showSuccess(name: string) {
-    this.item.text = `$(check) hdlRunner: ${name} OK`;
-    this.item.tooltip = `Last succeeded: ${name}`;
-  }
-
-  showFailed(name: string) {
-    this.item.text = `$(error) hdlRunner: ${name} Failed`;
-    this.item.tooltip = `Last failed: ${name}`;
+  showDisable() {
+    this.item.text = "hdlRunner: Disable";
+    this.item.tooltip = "HDL Runner Disable";
   }
 }
 
