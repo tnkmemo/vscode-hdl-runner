@@ -69,7 +69,7 @@ export class RegressionPanel {
     // Create new panel
     const panel = vscode.window.createWebviewPanel(
       RegressionPanel.viewType,
-      "Regression Analysis",
+      "Regression Panel",
       column,
       {
         enableScripts: true,
