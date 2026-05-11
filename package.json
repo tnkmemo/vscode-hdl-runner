@@ -11,6 +11,9 @@
     "Other",
     "Programming Languages"
   ],
+  "activationEvents": [
+    "onCommand:hdlRunner.enable"
+  ],
   "main": "./out/src/extension.js",
   "contributes": {
     "views": {
