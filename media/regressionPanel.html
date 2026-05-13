@@ -80,6 +80,7 @@ th { padding: 8px; background-color: var(--vscode-editor-lineHighlightBackground
                 this.metricMode = 'all';
                 this.isUpdatingDropdown = false; // Flag to prevent automatic change events
                 this.goalLineConfig = null;
+                this.currentTimelineInfo = null; // Store timeline info for calculateGoalLine
                 this.setupTabs();
                 this.setupResultsTab();
                 this.setupProgressTab();
@@ -101,6 +102,7 @@ th { padding: 8px; background-color: var(--vscode-editor-lineHighlightBackground
 
             /**
              * Calculate goal line data based on sigmoid function
+             * Adapts to extended timeline when goal line config is available
              * @param labels - array of date labels
              * @returns array of goal line values
              */
@@ -112,24 +114,40 @@ th { padding: 8px; background-color: var(--vscode-editor-lineHighlightBackground
                 const endTime = new Date(endDate).getTime();
                 const totalDuration = endTime - startTime;
 
-                return labels.map((label, index) => {
-                    // Get the timestamp from allResultsData (sorted reversed)
-                    if (index >= this.allResultsData.length) return endValue;
-                    const resultTimestamp = new Date(this.allResultsData[this.allResultsData.length - 1 - index].timestamp).getTime();
+                // If using extended timeline, calculate goal line for all timeline positions
+                if (this.currentTimelineInfo && this.currentTimelineInfo.usesGoalLineDates) {
+                    return labels.map((label, index) => {
+                        // Calculate the timestamp from the label position
+                        const step = totalDuration / (labels.length - 1);
+                        const labelTime = startTime + (step * index);
+                        
+                        if (labelTime < startTime) {
+                            return startValue;
+                        } else if (labelTime > endTime) {
+                            return endValue;
+                        } else {
+                            const normalizedTime = (labelTime - startTime) / totalDuration;
+                            const sigmoidValue = this.sigmoid(normalizedTime);
+                            return startValue + (endValue - startValue) * sigmoidValue;
+                        }
+                    });
+                } else {
+                    // Original behavior for data point timeline
+                    return labels.map((label, index) => {
+                        if (index >= this.allResultsData.length) return endValue;
+                        const resultTimestamp = new Date(this.allResultsData[this.allResultsData.length - 1 - index].timestamp).getTime();
 
-                    if (resultTimestamp < startTime) {
-                        return startValue;
-                    } else if (resultTimestamp > endTime) {
-                        return endValue;
-                    } else {
-                        // Calculate normalized time (0 to 1)
-                        const normalizedTime = (resultTimestamp - startTime) / totalDuration;
-                        // Apply sigmoid function
-                        const sigmoidValue = this.sigmoid(normalizedTime);
-                        // Interpolate between startValue and endValue
-                        return startValue + (endValue - startValue) * sigmoidValue;
-                    }
-                });
+                        if (resultTimestamp < startTime) {
+                            return startValue;
+                        } else if (resultTimestamp > endTime) {
+                            return endValue;
+                        } else {
+                            const normalizedTime = (resultTimestamp - startTime) / totalDuration;
+                            const sigmoidValue = this.sigmoid(normalizedTime);
+                            return startValue + (endValue - startValue) * sigmoidValue;
+                        }
+                    });
+                }
             }
 
             setupTabs() {
@@ -282,6 +300,89 @@ th { padding: 8px; background-color: var(--vscode-editor-lineHighlightBackground
                 `;
             }
 
+            /**
+             * Generate date labels for the timeline
+             * When goal line config is available, generates labels from startDate to endDate
+             * Otherwise, generates labels from available data points
+             * @returns {Array} Array of {labels, dataIndices, labelStartTime, labelEndTime}
+             */
+            generateTimelineLabels() {
+                const sorted = [...this.allResultsData].reverse();
+                
+                // If goal line config is available, use its date range
+                if (this.goalLineConfig) {
+                    const startTime = new Date(this.goalLineConfig.startDate).getTime();
+                    const endTime = new Date(this.goalLineConfig.endDate).getTime();
+                    
+                    // Generate labels for the entire timeline
+                    const labels = [];
+                    const labelCount = Math.min(sorted.length + 5, 12); // Reasonable number of labels
+                    const step = (endTime - startTime) / (labelCount - 1);
+                    
+                    for (let i = 0; i < labelCount; i++) {
+                        const time = startTime + (step * i);
+                        const date = new Date(time);
+                        labels.push(
+                            (date.getMonth()+1) + '/' + date.getDate() + ' ' + 
+                            date.getHours() + ':' + String(date.getMinutes()).padStart(2, '0')
+                        );
+                    }
+                    
+                    return { labels, startTime, endTime, usesGoalLineDates: true };
+                } else {
+                    // Fallback to original behavior: use data point timestamps
+                    const labels = sorted.map((r) => {
+                        const date = new Date(r.timestamp);
+                        return (date.getMonth()+1) + '/' + date.getDate() + ' ' + date.getHours() + ':' + String(date.getMinutes()).padStart(2, '0');
+                    });
+                    
+                    return { labels, startTime: null, endTime: null, usesGoalLineDates: false };
+                }
+            }
+
+            /**
+             * Map data points to timeline positions
+             * When using goal line dates, maps actual data to corresponding timeline positions
+             * @param {Array} sorted - Sorted results data
+             * @param {Object} timelineInfo - Timeline information from generateTimelineLabels
+             * @returns {Array} Mapped data arrays
+             */
+            mapDataToTimeline(sorted, timelineInfo) {
+                if (!timelineInfo.usesGoalLineDates) {
+                    // Original behavior: return data as-is for data point positions
+                    const passed = sorted.map(r => r.passedTests);
+                    const failed = sorted.map(r => r.failedTests);
+                    const rate = sorted.map(r => ((r.passedTests / r.totalTests) * 100).toFixed(1));
+                    return { passed, failed, rate };
+                }
+                
+                // Map data to timeline positions
+                const timelineLength = timelineInfo.labels.length;
+                const passed = new Array(timelineLength).fill(null);
+                const failed = new Array(timelineLength).fill(null);
+                const rate = new Array(timelineLength).fill(null);
+                
+                const { startTime, endTime } = timelineInfo;
+                const step = (endTime - startTime) / (timelineLength - 1);
+                
+                // Place each data point at its corresponding timeline position
+                sorted.forEach((result, dataIndex) => {
+                    const resultTime = new Date(result.timestamp).getTime();
+                    
+                    if (resultTime >= startTime && resultTime <= endTime) {
+                        // Find the closest label position
+                        const position = Math.round((resultTime - startTime) / step);
+                        const timelineIndex = Math.min(position, timelineLength - 1);
+                        
+                        passed[timelineIndex] = result.passedTests;
+                        failed[timelineIndex] = result.failedTests;
+                        rate[timelineIndex] = ((result.passedTests / result.totalTests) * 100).toFixed(1);
+                    }
+                });
+                
+                return { passed, failed, rate };
+            }
+
             renderProgress() {
                 if(this.allResultsData.length < 2) {
                     document.getElementById('legend').innerHTML = '<div style="padding:20px;color:var(--vscode-descriptionForeground,#858585)">At least 2 results needed for trend analysis</div>';
@@ -289,13 +390,16 @@ th { padding: 8px; background-color: var(--vscode-editor-lineHighlightBackground
                 }
 
                 const sorted = [...this.allResultsData].reverse();
-                const labels = sorted.map((r, i) => {
-                    const date = new Date(r.timestamp);
-                    return (date.getMonth()+1) + '/' + date.getDate() + ' ' + date.getHours() + ':' + String(date.getMinutes()).padStart(2, '0');
-                });
-                const passed = sorted.map(r => r.passedTests);
-                const failed = sorted.map(r => r.failedTests);
-                const rate = sorted.map(r => ((r.passedTests / r.totalTests) * 100).toFixed(1));
+                
+                // Generate timeline labels (extended to startDate/endDate if goal line config exists)
+                const timelineInfo = this.generateTimelineLabels();
+                const { labels } = timelineInfo;
+                
+                // Store timeline info for use in calculateGoalLine
+                this.currentTimelineInfo = timelineInfo;
+                
+                // Map data to timeline positions
+                const { passed, failed, rate } = this.mapDataToTimeline(sorted, timelineInfo);
 
                 let datasets = [];
                 if(this.metricMode === 'all') {
