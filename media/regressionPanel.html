@@ -79,11 +79,57 @@ th { padding: 8px; background-color: var(--vscode-editor-lineHighlightBackground
                 this.chart = null;
                 this.metricMode = 'all';
                 this.isUpdatingDropdown = false; // Flag to prevent automatic change events
+                this.goalLineConfig = null;
                 this.setupTabs();
                 this.setupResultsTab();
                 this.setupProgressTab();
                 this.setupMessageListener();
                 vscode.postMessage({type: 'getAllResults'});
+            }
+
+            /**
+             * Sigmoid function for bug curve calculation
+             * @param t - normalized time (0 to 1)
+             * @returns sigmoid value (0 to 1)
+             */
+            sigmoid(t) {
+                // Steepness parameter
+                const k = 12;
+                // Center of sigmoid at t=0.5
+                return 1 / (1 + Math.exp(-k * (t - 0.5)));
+            }
+
+            /**
+             * Calculate goal line data based on sigmoid function
+             * @param labels - array of date labels
+             * @returns array of goal line values
+             */
+            calculateGoalLine(labels) {
+                if (!this.goalLineConfig) return null;
+
+                const { startDate, endDate, startValue, endValue } = this.goalLineConfig;
+                const startTime = new Date(startDate).getTime();
+                const endTime = new Date(endDate).getTime();
+                const totalDuration = endTime - startTime;
+
+                return labels.map((label, index) => {
+                    // Get the timestamp from allResultsData (sorted reversed)
+                    if (index >= this.allResultsData.length) return endValue;
+                    const resultTimestamp = new Date(this.allResultsData[this.allResultsData.length - 1 - index].timestamp).getTime();
+
+                    if (resultTimestamp < startTime) {
+                        return startValue;
+                    } else if (resultTimestamp > endTime) {
+                        return endValue;
+                    } else {
+                        // Calculate normalized time (0 to 1)
+                        const normalizedTime = (resultTimestamp - startTime) / totalDuration;
+                        // Apply sigmoid function
+                        const sigmoidValue = this.sigmoid(normalizedTime);
+                        // Interpolate between startValue and endValue
+                        return startValue + (endValue - startValue) * sigmoidValue;
+                    }
+                });
             }
 
             setupTabs() {
@@ -141,6 +187,8 @@ th { padding: 8px; background-color: var(--vscode-editor-lineHighlightBackground
                         this.renderResults(e.data.payload);
                     } else if(e.data.type === 'progressData') {
                         this.renderTestProgress(e.data.payload);
+                    } else if(e.data.type === 'goalLineConfig') {
+                        this.goalLineConfig = e.data.payload;
                     }
                 });
             }
@@ -261,7 +309,26 @@ th { padding: 8px; background-color: var(--vscode-editor-lineHighlightBackground
                 } else if(this.metricMode === 'fail') {
                     datasets = [{label: 'Failed Tests', data: failed, borderColor: '#f48771', backgroundColor: 'rgba(244, 135, 113, 0.2)', tension: 0.3}];
                 } else if(this.metricMode === 'warn') {
-                    datasets = [{label: 'Success Rate %', data: rate, borderColor: '#4fc1ff', backgroundColor: 'rgba(79, 193, 255, 0.2)', tension: 0.3}];
+                    datasets = [{label: 'Success Rate %', data: rate, borderColor: '#4fc1ff', backgroundColor: 'rgba(79, 193, 255, 0.2)', tension: 0.3, yAxisID: 'y1'}];
+                }
+
+                // Add goal line if configured and metricMode is 'warn' (Success Rate %)
+                if (this.goalLineConfig && (this.metricMode === 'all' || this.metricMode === 'warn')) {
+                    const goalLine = this.calculateGoalLine(labels);
+                    if (goalLine) {
+                        const yAxisId = this.metricMode === 'all' ? 'y1' : 'y';
+                        datasets.push({
+                            label: 'Goal Line',
+                            data: goalLine,
+                            borderColor: '#ff9d3d',
+                            borderDash: [5, 5],
+                            backgroundColor: 'transparent',
+                            tension: 0.3,
+                            yAxisID: yAxisId,
+                            borderWidth: 2,
+                            fill: false
+                        });
+                    }
                 }
 
                 const ctx = document.getElementById('trendChart').getContext('2d');
@@ -276,7 +343,7 @@ th { padding: 8px; background-color: var(--vscode-editor-lineHighlightBackground
                         plugins: {legend: {labels: {color: 'rgba(212,212,212,0.7)', font: {size: 12}}}},
                         scales: {
                             y: {ticks: {color: 'rgba(212,212,212,0.5)'}, grid: {color: 'rgba(100,100,100,0.1)'}},
-                            y1: this.metricMode === 'all' ? {position: 'right', ticks: {color: 'rgba(212,212,212,0.5)'}, grid: {color: 'rgba(100,100,100,0.1)'}} : undefined,
+                            y1: (this.metricMode === 'all' || this.metricMode === 'warn') ? {position: 'right', ticks: {color: 'rgba(212,212,212,0.5)'}, grid: {color: 'rgba(100,100,100,0.1)'}} : undefined,
                             x: {ticks: {color: 'rgba(212,212,212,0.5)'}, grid: {color: 'rgba(100,100,100,0.1)'}}
                         }
                     }
@@ -285,7 +352,7 @@ th { padding: 8px; background-color: var(--vscode-editor-lineHighlightBackground
                 const legend = document.getElementById('legend');
                 legend.innerHTML = datasets.map(d => `
                     <div class="legend-item">
-                        <div class="legend-color" style="background-color:${d.borderColor}"></div>
+                        <div class="legend-color" style="background-color:${d.borderColor};${d.borderDash ? 'background-image: repeating-linear-gradient(90deg, ' + d.borderColor + ' 0px, ' + d.borderColor + ' 5px, transparent 5px, transparent 10px)' : ''}"></div>
                         <span>${d.label}</span>
                     </div>
                 `).join('');
