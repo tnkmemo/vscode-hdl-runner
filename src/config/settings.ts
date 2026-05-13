@@ -17,9 +17,17 @@ export interface WaveformConfig {
   viewerArgs: string[];
 }
 
+export interface GoalLineConfig {
+  startDate: string;
+  endDate: string;
+  startValue: number;
+  endValue: number;
+}
+
 export interface RegressionConfig {
   logPatterns: LogPatterns;
   waveform: WaveformConfig;
+  goalLine?: GoalLineConfig;
 }
 
 export interface HDLRunnerSettings {
@@ -51,7 +59,8 @@ export function loadSettings(): HDLRunnerSettings {
       waveform: config.get<WaveformConfig>("waveform.config") ?? {
         viewer: "gtkwave",
         viewerArgs: ["${vcd}"]
-      }
+      },
+      goalLine: config.get<GoalLineConfig>("regression.goalLine")
     },
     maxParallel: config.get<number>("maxParallel") ?? 1,
     filelistPath: config.get<string>("filelistPath") ?? "filelist.f"

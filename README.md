@@ -147,6 +147,15 @@ Customize your environment by adding the following settings to `.vscode/settings
   },
 
   // Limit for maximum parallel executions
-  "hdlRunner.maxParallel": 1
+  "hdlRunner.maxParallel": 1,
+
+  // Goal line configuration for regression panel
+  // Displays a target bug curve (sigmoid function) on the Success Rate % chart
+  "hdlRunner.regression.goalLine": {
+    "startDate": "2026-01-01",
+    "endDate": "2026-12-31",
+    "startValue": 50,
+    "endValue": 95
+  }
 }
 ```

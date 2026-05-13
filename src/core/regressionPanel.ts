@@ -154,6 +154,8 @@ export class RegressionPanel {
     const fs = require("fs");
     let html = fs.readFileSync(resourcePath.toString(), "utf-8");
     this.panel.webview.html = html;
+    // Send goal line config after webview is ready
+    setTimeout(() => this.sendGoalLineToWebview(), 100);
   }
 
   /**
@@ -195,6 +197,18 @@ export class RegressionPanel {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       log.error(`Failed to send all results: ${message}`);
+    }
+  }
+
+  /**
+   * Send goal line configuration to webview
+   */
+  private sendGoalLineToWebview(): void {
+    if (this.settings.regression.goalLine) {
+      this.panel.webview.postMessage({
+        type: "goalLineConfig",
+        payload: this.settings.regression.goalLine
+      });
     }
   }
 
