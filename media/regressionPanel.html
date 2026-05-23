@@ -77,7 +77,7 @@ th { padding: 8px; background-color: var(--vscode-editor-lineHighlightBackground
             constructor() {
                 this.allResultsData = [];
                 this.chart = null;
-                this.metricMode = 'all';
+                this.metricMode = 'pass';
                 this.isUpdatingDropdown = false; // Flag to prevent automatic change events
                 this.goalLineConfig = null;
                 this.currentTimelineInfo = null; // Store timeline info for calculateGoalLine
@@ -109,17 +109,25 @@ th { padding: 8px; background-color: var(--vscode-editor-lineHighlightBackground
             calculateGoalLine(labels) {
                 if (!this.goalLineConfig) return null;
 
-                const { startDate, endDate, startValue, endValue } = this.goalLineConfig;
+                const { startDate, endDate } = this.goalLineConfig;
+                const latestResult = this.allResultsData[0];
+                const testCount = latestResult ? latestResult.totalTests : 0;
+                const startValue = this.goalLineConfig.startValue ?? 0;
+                const endValue = this.goalLineConfig.endValue ?? testCount;
                 const startTime = new Date(startDate).getTime();
                 const endTime = new Date(endDate).getTime();
                 const totalDuration = endTime - startTime;
 
                 // If using extended timeline, calculate goal line for all timeline positions
                 if (this.currentTimelineInfo && this.currentTimelineInfo.usesGoalLineDates) {
+                    const timelineStartTime = this.currentTimelineInfo.startTime;
+                    const timelineEndTime = this.currentTimelineInfo.endTime;
+                    const timelineDuration = timelineEndTime - timelineStartTime;
+
                     return labels.map((label, index) => {
                         // Calculate the timestamp from the label position
-                        const step = totalDuration / (labels.length - 1);
-                        const labelTime = startTime + (step * index);
+                        const step = timelineDuration / (labels.length - 1);
+                        const labelTime = timelineStartTime + (step * index);
                         
                         if (labelTime < startTime) {
                             return startValue;
@@ -177,14 +185,14 @@ th { padding: 8px; background-color: var(--vscode-editor-lineHighlightBackground
             setupProgressTab() {
                 const metricsContainer = document.getElementById('metric-buttons');
                 const metrics = [
-                    {label: 'All Metrics', value: 'all'},
-                    {label: 'Pass Only', value: 'pass'},
-                    {label: 'Fail Only', value: 'fail'},
+                    {label: 'Pass', value: 'pass'},
+                    {label: 'Fail', value: 'fail'},
+                    {label: 'Errors', value: 'error'},
                     {label: 'Warnings', value: 'warn'}
                 ];
                 metrics.forEach(m => {
                     const btn = document.createElement('button');
-                    btn.className = 'btn secondary' + (m.value === 'all' ? ' active' : '');
+                    btn.className = 'btn secondary' + (m.value === this.metricMode ? ' active' : '');
                     btn.textContent = m.label;
                     btn.addEventListener('click', () => {
                         document.querySelectorAll('#metric-buttons .btn').forEach(b => b.classList.remove('active'));
@@ -302,17 +310,25 @@ th { padding: 8px; background-color: var(--vscode-editor-lineHighlightBackground
 
             /**
              * Generate date labels for the timeline
-             * When goal line config is available, generates labels from startDate to endDate
+             * When goal line config is available, extends the range to include both
+             * goalLine startDate/endDate and the min/max timestamps in result files.
              * Otherwise, generates labels from available data points
              * @returns {Array} Array of {labels, dataIndices, labelStartTime, labelEndTime}
              */
             generateTimelineLabels() {
                 const sorted = [...this.allResultsData].reverse();
                 
-                // If goal line config is available, use its date range
+                // If goal line config is available, use the union of goal and result date ranges
                 if (this.goalLineConfig) {
-                    const startTime = new Date(this.goalLineConfig.startDate).getTime();
-                    const endTime = new Date(this.goalLineConfig.endDate).getTime();
+                    const goalStartTime = new Date(this.goalLineConfig.startDate).getTime();
+                    const goalEndTime = new Date(this.goalLineConfig.endDate).getTime();
+                    const resultTimes = sorted
+                        .map(r => new Date(r.timestamp).getTime())
+                        .filter(time => Number.isFinite(time));
+                    const resultStartTime = Math.min(...resultTimes);
+                    const resultEndTime = Math.max(...resultTimes);
+                    const startTime = Math.min(goalStartTime, resultStartTime);
+                    const endTime = Math.max(goalEndTime, resultEndTime);
                     
                     // Generate labels for the entire timeline
                     const labels = [];
@@ -352,15 +368,17 @@ th { padding: 8px; background-color: var(--vscode-editor-lineHighlightBackground
                     // Original behavior: return data as-is for data point positions
                     const passed = sorted.map(r => r.passedTests);
                     const failed = sorted.map(r => r.failedTests);
-                    const rate = sorted.map(r => ((r.passedTests / r.totalTests) * 100).toFixed(1));
-                    return { passed, failed, rate };
+                    const errors = sorted.map(r => r.errorTests || 0);
+                    const warnings = sorted.map(r => r.warningTests || 0);
+                    return { passed, failed, errors, warnings };
                 }
                 
                 // Map data to timeline positions
                 const timelineLength = timelineInfo.labels.length;
                 const passed = new Array(timelineLength).fill(null);
                 const failed = new Array(timelineLength).fill(null);
-                const rate = new Array(timelineLength).fill(null);
+                const errors = new Array(timelineLength).fill(null);
+                const warnings = new Array(timelineLength).fill(null);
                 
                 const { startTime, endTime } = timelineInfo;
                 const step = (endTime - startTime) / (timelineLength - 1);
@@ -376,11 +394,12 @@ th { padding: 8px; background-color: var(--vscode-editor-lineHighlightBackground
                         
                         passed[timelineIndex] = result.passedTests;
                         failed[timelineIndex] = result.failedTests;
-                        rate[timelineIndex] = ((result.passedTests / result.totalTests) * 100).toFixed(1);
+                        errors[timelineIndex] = result.errorTests || 0;
+                        warnings[timelineIndex] = result.warningTests || 0;
                     }
                 });
                 
-                return { passed, failed, rate };
+                return { passed, failed, errors, warnings };
             }
 
             renderProgress() {
@@ -399,28 +418,23 @@ th { padding: 8px; background-color: var(--vscode-editor-lineHighlightBackground
                 this.currentTimelineInfo = timelineInfo;
                 
                 // Map data to timeline positions
-                const { passed, failed, rate } = this.mapDataToTimeline(sorted, timelineInfo);
+                const { passed, failed, errors, warnings } = this.mapDataToTimeline(sorted, timelineInfo);
 
                 let datasets = [];
-                if(this.metricMode === 'all') {
-                    datasets = [
-                        {label: 'Passed', data: passed, borderColor: '#4ec9b0', backgroundColor: 'rgba(78, 201, 176, 0.1)', tension: 0.3},
-                        {label: 'Failed', data: failed, borderColor: '#f48771', backgroundColor: 'rgba(244, 135, 113, 0.1)', tension: 0.3},
-                        {label: 'Success Rate %', data: rate, borderColor: '#4fc1ff', backgroundColor: 'rgba(79, 193, 255, 0.1)', tension: 0.3, yAxisID: 'y1'}
-                    ];
-                } else if(this.metricMode === 'pass') {
-                    datasets = [{label: 'Passed Tests', data: passed, borderColor: '#4ec9b0', backgroundColor: 'rgba(78, 201, 176, 0.2)', tension: 0.3}];
+                if(this.metricMode === 'pass') {
+                    datasets = [{label: 'Pass', data: passed, borderColor: '#4ec9b0', backgroundColor: 'rgba(78, 201, 176, 0.2)', tension: 0.3}];
                 } else if(this.metricMode === 'fail') {
-                    datasets = [{label: 'Failed Tests', data: failed, borderColor: '#f48771', backgroundColor: 'rgba(244, 135, 113, 0.2)', tension: 0.3}];
+                    datasets = [{label: 'Fail', data: failed, borderColor: '#f48771', backgroundColor: 'rgba(244, 135, 113, 0.2)', tension: 0.3}];
+                } else if(this.metricMode === 'error') {
+                    datasets = [{label: 'Errors', data: errors, borderColor: '#ff6b6b', backgroundColor: 'rgba(255, 107, 107, 0.2)', tension: 0.3}];
                 } else if(this.metricMode === 'warn') {
-                    datasets = [{label: 'Success Rate %', data: rate, borderColor: '#4fc1ff', backgroundColor: 'rgba(79, 193, 255, 0.2)', tension: 0.3, yAxisID: 'y1'}];
+                    datasets = [{label: 'Warnings', data: warnings, borderColor: '#4fc1ff', backgroundColor: 'rgba(79, 193, 255, 0.2)', tension: 0.3}];
                 }
 
-                // Add goal line if configured and metricMode is 'warn' (Success Rate %)
-                if (this.goalLineConfig && (this.metricMode === 'all' || this.metricMode === 'warn')) {
+                // Add goal line only to Pass.
+                if (this.goalLineConfig && this.metricMode === 'pass') {
                     const goalLine = this.calculateGoalLine(labels);
                     if (goalLine) {
-                        const yAxisId = this.metricMode === 'all' ? 'y1' : 'y';
                         datasets.push({
                             label: 'Goal Line',
                             data: goalLine,
@@ -428,7 +442,6 @@ th { padding: 8px; background-color: var(--vscode-editor-lineHighlightBackground
                             borderDash: [5, 5],
                             backgroundColor: 'transparent',
                             tension: 0.3,
-                            yAxisID: yAxisId,
                             borderWidth: 2,
                             fill: false
                         });
@@ -446,8 +459,7 @@ th { padding: 8px; background-color: var(--vscode-editor-lineHighlightBackground
                         maintainAspectRatio: false,
                         plugins: {legend: {labels: {color: 'rgba(212,212,212,0.7)', font: {size: 12}}}},
                         scales: {
-                            y: {ticks: {color: 'rgba(212,212,212,0.5)'}, grid: {color: 'rgba(100,100,100,0.1)'}},
-                            y1: (this.metricMode === 'all' || this.metricMode === 'warn') ? {position: 'right', ticks: {color: 'rgba(212,212,212,0.5)'}, grid: {color: 'rgba(100,100,100,0.1)'}} : undefined,
+                            y: {ticks: {color: 'rgba(212,212,212,0.5)', precision: 0}, grid: {color: 'rgba(100,100,100,0.1)'}},
                             x: {ticks: {color: 'rgba(212,212,212,0.5)'}, grid: {color: 'rgba(100,100,100,0.1)'}}
                         }
                     }

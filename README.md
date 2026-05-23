@@ -83,14 +83,14 @@ Customize your environment by adding the following settings to `.vscode/settings
     "sim": {
       "type": "group",
       "items": {
+        "preCompile": {
+          "type": "stage",
+          "command": "<Pre compile command>"
+        },
         "compile": {
           "type": "stage",
+          "dependsOn": ["sim.preCompile"],
           "command": "<Compile command>"
-        },
-        "elaborate": {
-          "type": "stage",
-          "dependsOn": ["sim.compile"],
-          "command": "<Elaborate command>"
         },
         "test": {
           "type": "group",
@@ -98,17 +98,17 @@ Customize your environment by adding the following settings to `.vscode/settings
             // runTest / runSelectedTest / runAllTest are reserved keywords
             "runTest": { 
               "type": "stage",
-              "dependsOn": ["sim.elaborate"],
+              "dependsOn": ["sim.compile"],
               "command": "<simulation run command ${works} ${waves} ${covs}>"
             },
             "runSelectedTest": { 
               "type": "stage",
-              "dependsOn": ["sim.elaborate"],
+              "dependsOn": ["sim.compile"],
               "command": "<simulation run command ${works} ${waves} ${covs}>"
             },
             "runAllTest": { 
               "type": "stage",
-              "dependsOn": ["sim.elaborate"],
+              "dependsOn": ["sim.compile"],
               "command": "<simulation run command ${works} ${waves} ${covs}>"
             }
           }
@@ -150,12 +150,11 @@ Customize your environment by adding the following settings to `.vscode/settings
   "hdlRunner.maxParallel": 1,
 
   // Goal line configuration for regression panel
-  // Displays a target bug curve (sigmoid function) on the Success Rate % chart
+  // Displays a target curve on the Pass chart.
+  // startValue defaults to 0 and endValue defaults to the latest test count.
   "hdlRunner.regression.goalLine": {
     "startDate": "2026-01-01",
-    "endDate": "2026-12-31",
-    "startValue": 50,
-    "endValue": 95
+    "endDate": "2026-12-31"
   }
 }
 ```

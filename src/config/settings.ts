@@ -20,8 +20,8 @@ export interface WaveformConfig {
 export interface GoalLineConfig {
   startDate: string;
   endDate: string;
-  startValue: number;
-  endValue: number;
+  startValue?: number;
+  endValue?: number;
 }
 
 export interface RegressionConfig {

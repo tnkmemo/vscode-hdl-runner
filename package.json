@@ -2,7 +2,7 @@
   "name": "vscode-hdl-runner",
   "displayName": "HDL Runner",
   "description": "Vendor-free HDL workflow runner for SystemVerilog/Verilog/VHDL. Supports compile, elaborate, simulate, regression and custom stages.",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "publisher": "tnkmemo",
   "engines": {
     "vscode": "^1.85.0"
@@ -189,11 +189,11 @@
             },
             "startValue": {
               "type": "number",
-              "description": "Success Rate % at startDate (0-100)"
+              "description": "Goal line value at startDate. Defaults to 0 when omitted."
             },
             "endValue": {
               "type": "number",
-              "description": "Success Rate % at endDate (0-100)"
+              "description": "Goal line value at endDate. Defaults to the latest regression test count when omitted."
             }
           }
         }
