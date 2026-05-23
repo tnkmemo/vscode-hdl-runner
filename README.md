@@ -150,12 +150,11 @@ Customize your environment by adding the following settings to `.vscode/settings
   "hdlRunner.maxParallel": 1,
 
   // Goal line configuration for regression panel
-  // Displays a target bug curve (sigmoid function) on the Success Rate % chart
+  // Displays a target curve on the Pass chart.
+  // startValue defaults to 0 and endValue defaults to the latest test count.
   "hdlRunner.regression.goalLine": {
     "startDate": "2026-01-01",
-    "endDate": "2026-12-31",
-    "startValue": 50,
-    "endValue": 95
+    "endDate": "2026-12-31"
   }
 }
 ```

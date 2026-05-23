@@ -109,7 +109,11 @@ th { padding: 8px; background-color: var(--vscode-editor-lineHighlightBackground
             calculateGoalLine(labels) {
                 if (!this.goalLineConfig) return null;
 
-                const { startDate, endDate, startValue, endValue } = this.goalLineConfig;
+                const { startDate, endDate } = this.goalLineConfig;
+                const latestResult = this.allResultsData[0];
+                const testCount = latestResult ? latestResult.totalTests : 0;
+                const startValue = this.goalLineConfig.startValue ?? 0;
+                const endValue = this.goalLineConfig.endValue ?? testCount;
                 const startTime = new Date(startDate).getTime();
                 const endTime = new Date(endDate).getTime();
                 const totalDuration = endTime - startTime;
@@ -181,8 +185,9 @@ th { padding: 8px; background-color: var(--vscode-editor-lineHighlightBackground
             setupProgressTab() {
                 const metricsContainer = document.getElementById('metric-buttons');
                 const metrics = [
-                    {label: 'Pass Only', value: 'pass'},
-                    {label: 'Fail Only', value: 'fail'},
+                    {label: 'Pass', value: 'pass'},
+                    {label: 'Fail', value: 'fail'},
+                    {label: 'Errors', value: 'error'},
                     {label: 'Warnings', value: 'warn'}
                 ];
                 metrics.forEach(m => {
@@ -363,14 +368,16 @@ th { padding: 8px; background-color: var(--vscode-editor-lineHighlightBackground
                     // Original behavior: return data as-is for data point positions
                     const passed = sorted.map(r => r.passedTests);
                     const failed = sorted.map(r => r.failedTests);
+                    const errors = sorted.map(r => r.errorTests || 0);
                     const warnings = sorted.map(r => r.warningTests || 0);
-                    return { passed, failed, warnings };
+                    return { passed, failed, errors, warnings };
                 }
                 
                 // Map data to timeline positions
                 const timelineLength = timelineInfo.labels.length;
                 const passed = new Array(timelineLength).fill(null);
                 const failed = new Array(timelineLength).fill(null);
+                const errors = new Array(timelineLength).fill(null);
                 const warnings = new Array(timelineLength).fill(null);
                 
                 const { startTime, endTime } = timelineInfo;
@@ -387,11 +394,12 @@ th { padding: 8px; background-color: var(--vscode-editor-lineHighlightBackground
                         
                         passed[timelineIndex] = result.passedTests;
                         failed[timelineIndex] = result.failedTests;
+                        errors[timelineIndex] = result.errorTests || 0;
                         warnings[timelineIndex] = result.warningTests || 0;
                     }
                 });
                 
-                return { passed, failed, warnings };
+                return { passed, failed, errors, warnings };
             }
 
             renderProgress() {
@@ -410,18 +418,20 @@ th { padding: 8px; background-color: var(--vscode-editor-lineHighlightBackground
                 this.currentTimelineInfo = timelineInfo;
                 
                 // Map data to timeline positions
-                const { passed, failed, warnings } = this.mapDataToTimeline(sorted, timelineInfo);
+                const { passed, failed, errors, warnings } = this.mapDataToTimeline(sorted, timelineInfo);
 
                 let datasets = [];
                 if(this.metricMode === 'pass') {
-                    datasets = [{label: 'Passed Tests', data: passed, borderColor: '#4ec9b0', backgroundColor: 'rgba(78, 201, 176, 0.2)', tension: 0.3}];
+                    datasets = [{label: 'Pass', data: passed, borderColor: '#4ec9b0', backgroundColor: 'rgba(78, 201, 176, 0.2)', tension: 0.3}];
                 } else if(this.metricMode === 'fail') {
-                    datasets = [{label: 'Failed Tests', data: failed, borderColor: '#f48771', backgroundColor: 'rgba(244, 135, 113, 0.2)', tension: 0.3}];
+                    datasets = [{label: 'Fail', data: failed, borderColor: '#f48771', backgroundColor: 'rgba(244, 135, 113, 0.2)', tension: 0.3}];
+                } else if(this.metricMode === 'error') {
+                    datasets = [{label: 'Errors', data: errors, borderColor: '#ff6b6b', backgroundColor: 'rgba(255, 107, 107, 0.2)', tension: 0.3}];
                 } else if(this.metricMode === 'warn') {
                     datasets = [{label: 'Warnings', data: warnings, borderColor: '#4fc1ff', backgroundColor: 'rgba(79, 193, 255, 0.2)', tension: 0.3}];
                 }
 
-                // Add goal line only to Pass Only.
+                // Add goal line only to Pass.
                 if (this.goalLineConfig && this.metricMode === 'pass') {
                     const goalLine = this.calculateGoalLine(labels);
                     if (goalLine) {
@@ -432,7 +442,6 @@ th { padding: 8px; background-color: var(--vscode-editor-lineHighlightBackground
                             borderDash: [5, 5],
                             backgroundColor: 'transparent',
                             tension: 0.3,
-                            yAxisID: 'y1',
                             borderWidth: 2,
                             fill: false
                         });
@@ -450,8 +459,7 @@ th { padding: 8px; background-color: var(--vscode-editor-lineHighlightBackground
                         maintainAspectRatio: false,
                         plugins: {legend: {labels: {color: 'rgba(212,212,212,0.7)', font: {size: 12}}}},
                         scales: {
-                            y: {ticks: {color: 'rgba(212,212,212,0.5)'}, grid: {color: 'rgba(100,100,100,0.1)'}},
-                            y1: this.metricMode === 'pass' ? {position: 'right', ticks: {color: 'rgba(212,212,212,0.5)'}, grid: {drawOnChartArea: false}} : undefined,
+                            y: {ticks: {color: 'rgba(212,212,212,0.5)', precision: 0}, grid: {color: 'rgba(100,100,100,0.1)'}},
                             x: {ticks: {color: 'rgba(212,212,212,0.5)'}, grid: {color: 'rgba(100,100,100,0.1)'}}
                         }
                     }
