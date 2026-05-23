@@ -22,6 +22,8 @@ export interface ResultMetadata {
   totalTests: number;
   failedTests: number;
   passedTests: number;
+  errorTests: number;
+  warningTests: number;
   successRate: number; // 0-100
   executionTime?: number; // in milliseconds
 }
@@ -234,6 +236,8 @@ export class ResultCollector {
 
       const failedTests = result.tests.filter((t) => t.errors > 0).length;
       const passedTests = result.tests.length - failedTests;
+      const errorTests = result.tests.reduce((sum, t) => sum + t.errors, 0);
+      const warningTests = result.tests.reduce((sum, t) => sum + t.warnings, 0);
       const successRate = result.tests.length > 0 
         ? Math.round((passedTests / result.tests.length) * 100)
         : 0;
@@ -244,6 +248,8 @@ export class ResultCollector {
         totalTests: result.tests.length,
         failedTests,
         passedTests,
+        errorTests,
+        warningTests,
         successRate
       };
     } catch (error) {
