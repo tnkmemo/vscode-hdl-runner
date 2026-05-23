@@ -102,11 +102,10 @@ th { padding: 8px; background-color: var(--vscode-editor-lineHighlightBackground
 
             /**
              * Calculate goal line data based on sigmoid function
-             * Adapts to extended timeline when goal line config is available
-             * @param labels - array of date labels
-             * @returns array of goal line values
+             * @param timelineInfo - Timeline information from getTimelineInfo
+             * @returns array of {x, y} goal line points
              */
-            calculateGoalLine(labels) {
+            calculateGoalLine(timelineInfo) {
                 if (!this.goalLineConfig) return null;
 
                 const { startDate, endDate } = this.goalLineConfig;
@@ -117,45 +116,26 @@ th { padding: 8px; background-color: var(--vscode-editor-lineHighlightBackground
                 const startTime = new Date(startDate).getTime();
                 const endTime = new Date(endDate).getTime();
                 const totalDuration = endTime - startTime;
+                const hourMs = 60 * 60 * 1000;
+                const sampleCount = Math.max(2, Math.ceil((timelineInfo.endTime - timelineInfo.startTime) / hourMs) + 1);
+                const step = (timelineInfo.endTime - timelineInfo.startTime) / (sampleCount - 1);
 
-                // If using extended timeline, calculate goal line for all timeline positions
-                if (this.currentTimelineInfo && this.currentTimelineInfo.usesGoalLineDates) {
-                    const timelineStartTime = this.currentTimelineInfo.startTime;
-                    const timelineEndTime = this.currentTimelineInfo.endTime;
-                    const timelineDuration = timelineEndTime - timelineStartTime;
+                return Array.from({length: sampleCount}, (_, index) => {
+                    const pointTime = timelineInfo.startTime + (step * index);
+                    let value;
 
-                    return labels.map((label, index) => {
-                        // Calculate the timestamp from the label position
-                        const step = timelineDuration / (labels.length - 1);
-                        const labelTime = timelineStartTime + (step * index);
-                        
-                        if (labelTime < startTime) {
-                            return startValue;
-                        } else if (labelTime > endTime) {
-                            return endValue;
-                        } else {
-                            const normalizedTime = (labelTime - startTime) / totalDuration;
-                            const sigmoidValue = this.sigmoid(normalizedTime);
-                            return startValue + (endValue - startValue) * sigmoidValue;
-                        }
-                    });
-                } else {
-                    // Original behavior for data point timeline
-                    return labels.map((label, index) => {
-                        if (index >= this.allResultsData.length) return endValue;
-                        const resultTimestamp = new Date(this.allResultsData[this.allResultsData.length - 1 - index].timestamp).getTime();
+                    if (pointTime < startTime) {
+                        value = startValue;
+                    } else if (pointTime > endTime) {
+                        value = endValue;
+                    } else {
+                        const normalizedTime = (pointTime - startTime) / totalDuration;
+                        const sigmoidValue = this.sigmoid(normalizedTime);
+                        value = startValue + (endValue - startValue) * sigmoidValue;
+                    }
 
-                        if (resultTimestamp < startTime) {
-                            return startValue;
-                        } else if (resultTimestamp > endTime) {
-                            return endValue;
-                        } else {
-                            const normalizedTime = (resultTimestamp - startTime) / totalDuration;
-                            const sigmoidValue = this.sigmoid(normalizedTime);
-                            return startValue + (endValue - startValue) * sigmoidValue;
-                        }
-                    });
-                }
+                    return {x: pointTime, y: value};
+                });
             }
 
             setupTabs() {
@@ -308,98 +288,91 @@ th { padding: 8px; background-color: var(--vscode-editor-lineHighlightBackground
                 `;
             }
 
-            /**
-             * Generate date labels for the timeline
-             * When goal line config is available, extends the range to include both
-             * goalLine startDate/endDate and the min/max timestamps in result files.
-             * Otherwise, generates labels from available data points
-             * @returns {Array} Array of {labels, dataIndices, labelStartTime, labelEndTime}
-             */
-            generateTimelineLabels() {
-                const sorted = [...this.allResultsData].reverse();
-                
-                // If goal line config is available, use the union of goal and result date ranges
+            formatDateTick(value) {
+                const date = new Date(value);
+                return (date.getMonth()+1) + '/' + date.getDate();
+            }
+
+            generateDailyTicks(startTime, endTime) {
+                const ticks = [];
+                const current = new Date(startTime);
+                current.setHours(0, 0, 0, 0);
+
+                if (current.getTime() < startTime) {
+                    current.setDate(current.getDate() + 1);
+                }
+
+                while (current.getTime() <= endTime) {
+                    ticks.push(current.getTime());
+                    current.setDate(current.getDate() + 1);
+                }
+
+                if (ticks.length === 0) {
+                    ticks.push(startTime);
+                }
+
+                return ticks;
+            }
+
+            getTimelineInfo(sorted) {
+                const resultTimes = sorted
+                    .map(r => new Date(r.timestamp).getTime())
+                    .filter(time => Number.isFinite(time));
+
+                if (resultTimes.length === 0) {
+                    return null;
+                }
+
+                let startTime = Math.min(...resultTimes);
+                let endTime = Math.max(...resultTimes);
+
                 if (this.goalLineConfig) {
                     const goalStartTime = new Date(this.goalLineConfig.startDate).getTime();
                     const goalEndTime = new Date(this.goalLineConfig.endDate).getTime();
-                    const resultTimes = sorted
-                        .map(r => new Date(r.timestamp).getTime())
-                        .filter(time => Number.isFinite(time));
-                    const resultStartTime = Math.min(...resultTimes);
-                    const resultEndTime = Math.max(...resultTimes);
-                    const startTime = Math.min(goalStartTime, resultStartTime);
-                    const endTime = Math.max(goalEndTime, resultEndTime);
-                    
-                    // Generate labels for the entire timeline
-                    const labels = [];
-                    const labelCount = Math.min(sorted.length + 5, 12); // Reasonable number of labels
-                    const step = (endTime - startTime) / (labelCount - 1);
-                    
-                    for (let i = 0; i < labelCount; i++) {
-                        const time = startTime + (step * i);
-                        const date = new Date(time);
-                        labels.push(
-                            (date.getMonth()+1) + '/' + date.getDate() + ' ' + 
-                            date.getHours() + ':' + String(date.getMinutes()).padStart(2, '0')
-                        );
+
+                    if (Number.isFinite(goalStartTime)) {
+                        startTime = Math.min(startTime, goalStartTime);
                     }
-                    
-                    return { labels, startTime, endTime, usesGoalLineDates: true };
-                } else {
-                    // Fallback to original behavior: use data point timestamps
-                    const labels = sorted.map((r) => {
-                        const date = new Date(r.timestamp);
-                        return (date.getMonth()+1) + '/' + date.getDate() + ' ' + date.getHours() + ':' + String(date.getMinutes()).padStart(2, '0');
-                    });
-                    
-                    return { labels, startTime: null, endTime: null, usesGoalLineDates: false };
+                    if (Number.isFinite(goalEndTime)) {
+                        endTime = Math.max(endTime, goalEndTime);
+                    }
                 }
+
+                if (startTime === endTime) {
+                    const hourMs = 60 * 60 * 1000;
+                    startTime -= hourMs;
+                    endTime += hourMs;
+                }
+
+                return {
+                    startTime,
+                    endTime,
+                    dailyTicks: this.generateDailyTicks(startTime, endTime)
+                };
             }
 
-            /**
-             * Map data points to timeline positions
-             * When using goal line dates, maps actual data to corresponding timeline positions
-             * @param {Array} sorted - Sorted results data
-             * @param {Object} timelineInfo - Timeline information from generateTimelineLabels
-             * @returns {Array} Mapped data arrays
-             */
-            mapDataToTimeline(sorted, timelineInfo) {
-                if (!timelineInfo.usesGoalLineDates) {
-                    // Original behavior: return data as-is for data point positions
-                    const passed = sorted.map(r => r.passedTests);
-                    const failed = sorted.map(r => r.failedTests);
-                    const errors = sorted.map(r => r.errorTests || 0);
-                    const warnings = sorted.map(r => r.warningTests || 0);
-                    return { passed, failed, errors, warnings };
-                }
-                
-                // Map data to timeline positions
-                const timelineLength = timelineInfo.labels.length;
-                const passed = new Array(timelineLength).fill(null);
-                const failed = new Array(timelineLength).fill(null);
-                const errors = new Array(timelineLength).fill(null);
-                const warnings = new Array(timelineLength).fill(null);
-                
-                const { startTime, endTime } = timelineInfo;
-                const step = (endTime - startTime) / (timelineLength - 1);
-                
-                // Place each data point at its corresponding timeline position
-                sorted.forEach((result, dataIndex) => {
-                    const resultTime = new Date(result.timestamp).getTime();
-                    
-                    if (resultTime >= startTime && resultTime <= endTime) {
-                        // Find the closest label position
-                        const position = Math.round((resultTime - startTime) / step);
-                        const timelineIndex = Math.min(position, timelineLength - 1);
-                        
-                        passed[timelineIndex] = result.passedTests;
-                        failed[timelineIndex] = result.failedTests;
-                        errors[timelineIndex] = result.errorTests || 0;
-                        warnings[timelineIndex] = result.warningTests || 0;
-                    }
-                });
-                
-                return { passed, failed, errors, warnings };
+            mapDataToTimePoints(sorted) {
+                const points = sorted
+                    .map(result => {
+                        const x = new Date(result.timestamp).getTime();
+                        if (!Number.isFinite(x)) return null;
+
+                        return {
+                            x,
+                            passed: result.passedTests,
+                            failed: result.failedTests,
+                            errors: result.errorTests || 0,
+                            warnings: result.warningTests || 0
+                        };
+                    })
+                    .filter(Boolean);
+
+                return {
+                    passed: points.map(point => ({x: point.x, y: point.passed})),
+                    failed: points.map(point => ({x: point.x, y: point.failed})),
+                    errors: points.map(point => ({x: point.x, y: point.errors})),
+                    warnings: points.map(point => ({x: point.x, y: point.warnings}))
+                };
             }
 
             renderProgress() {
@@ -409,16 +382,18 @@ th { padding: 8px; background-color: var(--vscode-editor-lineHighlightBackground
                 }
 
                 const sorted = [...this.allResultsData].reverse();
-                
-                // Generate timeline labels (extended to startDate/endDate if goal line config exists)
-                const timelineInfo = this.generateTimelineLabels();
-                const { labels } = timelineInfo;
+                const timelineInfo = this.getTimelineInfo(sorted);
+
+                if (!timelineInfo) {
+                    document.getElementById('legend').innerHTML = '<div style="padding:20px;color:var(--vscode-descriptionForeground,#858585)">No valid result timestamps available</div>';
+                    return;
+                }
                 
                 // Store timeline info for use in calculateGoalLine
                 this.currentTimelineInfo = timelineInfo;
                 
-                // Map data to timeline positions
-                const { passed, failed, errors, warnings } = this.mapDataToTimeline(sorted, timelineInfo);
+                // Map data to exact timestamp positions
+                const { passed, failed, errors, warnings } = this.mapDataToTimePoints(sorted);
 
                 let datasets = [];
                 if(this.metricMode === 'pass') {
@@ -433,7 +408,7 @@ th { padding: 8px; background-color: var(--vscode-editor-lineHighlightBackground
 
                 // Add goal line only to Pass.
                 if (this.goalLineConfig && this.metricMode === 'pass') {
-                    const goalLine = this.calculateGoalLine(labels);
+                    const goalLine = this.calculateGoalLine(timelineInfo);
                     if (goalLine) {
                         datasets.push({
                             label: 'Goal Line',
@@ -443,7 +418,8 @@ th { padding: 8px; background-color: var(--vscode-editor-lineHighlightBackground
                             backgroundColor: 'transparent',
                             tension: 0.3,
                             borderWidth: 2,
-                            fill: false
+                            fill: false,
+                            pointRadius: 0
                         });
                     }
                 }
@@ -453,14 +429,26 @@ th { padding: 8px; background-color: var(--vscode-editor-lineHighlightBackground
                 
                 this.chart = new Chart(ctx, {
                     type: 'line',
-                    data: {labels, datasets},
+                    data: {datasets},
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
                         plugins: {legend: {labels: {color: 'rgba(212,212,212,0.7)', font: {size: 12}}}},
                         scales: {
                             y: {ticks: {color: 'rgba(212,212,212,0.5)', precision: 0}, grid: {color: 'rgba(100,100,100,0.1)'}},
-                            x: {ticks: {color: 'rgba(212,212,212,0.5)'}, grid: {color: 'rgba(100,100,100,0.1)'}}
+                            x: {
+                                type: 'linear',
+                                min: timelineInfo.startTime,
+                                max: timelineInfo.endTime,
+                                afterBuildTicks: (axis) => {
+                                    axis.ticks = timelineInfo.dailyTicks.map(value => ({value}));
+                                },
+                                ticks: {
+                                    color: 'rgba(212,212,212,0.5)',
+                                    callback: (value) => this.formatDateTick(value)
+                                },
+                                grid: {color: 'rgba(100,100,100,0.1)'}
+                            }
                         }
                     }
                 });
