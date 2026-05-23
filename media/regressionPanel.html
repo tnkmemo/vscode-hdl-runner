@@ -77,7 +77,7 @@ th { padding: 8px; background-color: var(--vscode-editor-lineHighlightBackground
             constructor() {
                 this.allResultsData = [];
                 this.chart = null;
-                this.metricMode = 'all';
+                this.metricMode = 'pass';
                 this.isUpdatingDropdown = false; // Flag to prevent automatic change events
                 this.goalLineConfig = null;
                 this.currentTimelineInfo = null; // Store timeline info for calculateGoalLine
@@ -181,14 +181,13 @@ th { padding: 8px; background-color: var(--vscode-editor-lineHighlightBackground
             setupProgressTab() {
                 const metricsContainer = document.getElementById('metric-buttons');
                 const metrics = [
-                    {label: 'All Metrics', value: 'all'},
                     {label: 'Pass Only', value: 'pass'},
                     {label: 'Fail Only', value: 'fail'},
                     {label: 'Warnings', value: 'warn'}
                 ];
                 metrics.forEach(m => {
                     const btn = document.createElement('button');
-                    btn.className = 'btn secondary' + (m.value === 'all' ? ' active' : '');
+                    btn.className = 'btn secondary' + (m.value === this.metricMode ? ' active' : '');
                     btn.textContent = m.label;
                     btn.addEventListener('click', () => {
                         document.querySelectorAll('#metric-buttons .btn').forEach(b => b.classList.remove('active'));
@@ -364,15 +363,15 @@ th { padding: 8px; background-color: var(--vscode-editor-lineHighlightBackground
                     // Original behavior: return data as-is for data point positions
                     const passed = sorted.map(r => r.passedTests);
                     const failed = sorted.map(r => r.failedTests);
-                    const rate = sorted.map(r => ((r.passedTests / r.totalTests) * 100).toFixed(1));
-                    return { passed, failed, rate };
+                    const warnings = sorted.map(r => r.warningTests || 0);
+                    return { passed, failed, warnings };
                 }
                 
                 // Map data to timeline positions
                 const timelineLength = timelineInfo.labels.length;
                 const passed = new Array(timelineLength).fill(null);
                 const failed = new Array(timelineLength).fill(null);
-                const rate = new Array(timelineLength).fill(null);
+                const warnings = new Array(timelineLength).fill(null);
                 
                 const { startTime, endTime } = timelineInfo;
                 const step = (endTime - startTime) / (timelineLength - 1);
@@ -388,11 +387,11 @@ th { padding: 8px; background-color: var(--vscode-editor-lineHighlightBackground
                         
                         passed[timelineIndex] = result.passedTests;
                         failed[timelineIndex] = result.failedTests;
-                        rate[timelineIndex] = ((result.passedTests / result.totalTests) * 100).toFixed(1);
+                        warnings[timelineIndex] = result.warningTests || 0;
                     }
                 });
                 
-                return { passed, failed, rate };
+                return { passed, failed, warnings };
             }
 
             renderProgress() {
@@ -411,28 +410,21 @@ th { padding: 8px; background-color: var(--vscode-editor-lineHighlightBackground
                 this.currentTimelineInfo = timelineInfo;
                 
                 // Map data to timeline positions
-                const { passed, failed, rate } = this.mapDataToTimeline(sorted, timelineInfo);
+                const { passed, failed, warnings } = this.mapDataToTimeline(sorted, timelineInfo);
 
                 let datasets = [];
-                if(this.metricMode === 'all') {
-                    datasets = [
-                        {label: 'Passed', data: passed, borderColor: '#4ec9b0', backgroundColor: 'rgba(78, 201, 176, 0.1)', tension: 0.3},
-                        {label: 'Failed', data: failed, borderColor: '#f48771', backgroundColor: 'rgba(244, 135, 113, 0.1)', tension: 0.3},
-                        {label: 'Success Rate %', data: rate, borderColor: '#4fc1ff', backgroundColor: 'rgba(79, 193, 255, 0.1)', tension: 0.3, yAxisID: 'y1'}
-                    ];
-                } else if(this.metricMode === 'pass') {
+                if(this.metricMode === 'pass') {
                     datasets = [{label: 'Passed Tests', data: passed, borderColor: '#4ec9b0', backgroundColor: 'rgba(78, 201, 176, 0.2)', tension: 0.3}];
                 } else if(this.metricMode === 'fail') {
                     datasets = [{label: 'Failed Tests', data: failed, borderColor: '#f48771', backgroundColor: 'rgba(244, 135, 113, 0.2)', tension: 0.3}];
                 } else if(this.metricMode === 'warn') {
-                    datasets = [{label: 'Success Rate %', data: rate, borderColor: '#4fc1ff', backgroundColor: 'rgba(79, 193, 255, 0.2)', tension: 0.3, yAxisID: 'y1'}];
+                    datasets = [{label: 'Warnings', data: warnings, borderColor: '#4fc1ff', backgroundColor: 'rgba(79, 193, 255, 0.2)', tension: 0.3}];
                 }
 
-                // Add goal line if configured and metricMode is 'warn' (Success Rate %)
-                if (this.goalLineConfig && (this.metricMode === 'all' || this.metricMode === 'warn')) {
+                // Add goal line only to Pass Only.
+                if (this.goalLineConfig && this.metricMode === 'pass') {
                     const goalLine = this.calculateGoalLine(labels);
                     if (goalLine) {
-                        const yAxisId = this.metricMode === 'all' ? 'y1' : 'y';
                         datasets.push({
                             label: 'Goal Line',
                             data: goalLine,
@@ -440,7 +432,7 @@ th { padding: 8px; background-color: var(--vscode-editor-lineHighlightBackground
                             borderDash: [5, 5],
                             backgroundColor: 'transparent',
                             tension: 0.3,
-                            yAxisID: yAxisId,
+                            yAxisID: 'y1',
                             borderWidth: 2,
                             fill: false
                         });
@@ -459,7 +451,7 @@ th { padding: 8px; background-color: var(--vscode-editor-lineHighlightBackground
                         plugins: {legend: {labels: {color: 'rgba(212,212,212,0.7)', font: {size: 12}}}},
                         scales: {
                             y: {ticks: {color: 'rgba(212,212,212,0.5)'}, grid: {color: 'rgba(100,100,100,0.1)'}},
-                            y1: (this.metricMode === 'all' || this.metricMode === 'warn') ? {position: 'right', ticks: {color: 'rgba(212,212,212,0.5)'}, grid: {color: 'rgba(100,100,100,0.1)'}} : undefined,
+                            y1: this.metricMode === 'pass' ? {position: 'right', ticks: {color: 'rgba(212,212,212,0.5)'}, grid: {drawOnChartArea: false}} : undefined,
                             x: {ticks: {color: 'rgba(212,212,212,0.5)'}, grid: {color: 'rgba(100,100,100,0.1)'}}
                         }
                     }
