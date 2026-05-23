@@ -83,14 +83,14 @@ Customize your environment by adding the following settings to `.vscode/settings
     "sim": {
       "type": "group",
       "items": {
+        "preCompile": {
+          "type": "stage",
+          "command": "<Pre compile command>"
+        },
         "compile": {
           "type": "stage",
+          "dependsOn": ["sim.preCompile"],
           "command": "<Compile command>"
-        },
-        "elaborate": {
-          "type": "stage",
-          "dependsOn": ["sim.compile"],
-          "command": "<Elaborate command>"
         },
         "test": {
           "type": "group",
@@ -98,17 +98,17 @@ Customize your environment by adding the following settings to `.vscode/settings
             // runTest / runSelectedTest / runAllTest are reserved keywords
             "runTest": { 
               "type": "stage",
-              "dependsOn": ["sim.elaborate"],
+              "dependsOn": ["sim.compile"],
               "command": "<simulation run command ${works} ${waves} ${covs}>"
             },
             "runSelectedTest": { 
               "type": "stage",
-              "dependsOn": ["sim.elaborate"],
+              "dependsOn": ["sim.compile"],
               "command": "<simulation run command ${works} ${waves} ${covs}>"
             },
             "runAllTest": { 
               "type": "stage",
-              "dependsOn": ["sim.elaborate"],
+              "dependsOn": ["sim.compile"],
               "command": "<simulation run command ${works} ${waves} ${covs}>"
             }
           }
